@@ -69,6 +69,36 @@ __global__ void matrixMultiplyShared(float *A, float *B, float *C,
 		C[Row * numCColumns + Col] = Pvalue;
 }
 
+// non-tiled approach
+__global__ void matrixMultiply(const float *A, const float *B, float* C, int m, int n, int k) {
+
+    /********************************************************************
+     *
+     * Compute C = A x B
+     *   where A is a (m x k) matrix
+     *   where B is a (k x n) matrix
+     *   where C is a (m x n) matrix
+     *
+     ********************************************************************/
+
+	// identify the row and the column of current thread
+	int ROW = blockIdx.y * blockDim.y + threadIdx.y;
+	int COL = blockIdx.x * blockDim.x + threadIdx.x;
+
+    float Pvalue = 0.0;
+
+    // need to limit the threads that extend beyond matrix C
+    if (ROW < m && COL < n) {
+        // each thread computes one element of the matrix C
+    	// A is k width, and B is n width
+        for (int i = 0; i < k; i++) {
+        	Pvalue += A[ROW * k + i] * B[i * n + COL];
+        }
+        // store Pvalue in C
+        C[ROW * n + COL] = Pvalue;
+    }
+}
+
 // serial implementation
 // this is basically a copy of VERIFY from support.cu tweaked to set C
 void matrixMultiplySerial(float * A, float * B, float * C, int m, int k, int n) {
@@ -101,6 +131,9 @@ int main (int argc, char *argv[])
     unsigned matBrow, matBcol;
     unsigned matCrow, matCcol;
     
+    // choose which kernel to run
+    bool useShared = false;
+
     // loop variables
     bool keepGoing = true;
     int ITERATIONS = 3;
@@ -114,6 +147,12 @@ int main (int argc, char *argv[])
     // initial matrix size
     int MAT_SIZE = 20;
 
+    if(useShared){
+    	printf("Using tiled kernel:\n"); fflush(stdout);
+    } else {
+    	printf("Using non-tiled kernel:\n"); fflush(stdout);
+    }
+
     // loop until serial operation takes 4 minutes
     while(keepGoing){
 
@@ -122,9 +161,12 @@ int main (int argc, char *argv[])
 		matAcol = matBrow = MAT_SIZE;
 		matBcol = matCcol = MAT_SIZE;
 
-		printf("Testing matrix size: %d\n", MAT_SIZE); fflush(stdout);
+		printf("Testing configuration:\n"); fflush(stdout);
 
-		// Give it three rounds
+		printf("    A: %u x %u\n    B: %u x %u\n    C: %u x %u\n", matArow, matAcol,
+			matBrow, matBcol, matCrow, matCcol);
+
+		// Give it ITERATION rounds
 		for(int k = 0; k < ITERATIONS; k++){
 			printf("Iteration: %d\n", k); fflush(stdout);
 
@@ -141,9 +183,6 @@ int main (int argc, char *argv[])
 
 			C_h = (float*) malloc( sizeof(float)*C_sz );
 			CSerial_h = (float*) malloc( sizeof(float)*C_sz );
-
-			printf("    A: %u x %u\n    B: %u x %u\n    C: %u x %u\n", matArow, matAcol,
-				matBrow, matBcol, matCrow, matCcol);
 
 			// Allocate device variables ----------------------------------------------
 
@@ -180,9 +219,11 @@ int main (int argc, char *argv[])
 
 			//@@ Launch the GPU Kernel here
 			startTime(&timer);
-			matrixMultiplyShared<<<dimGrid, dimBlock>>>(A_d, B_d, C_d,
-														matArow, matAcol, matBrow, matBcol,
-														matCrow, matCcol);
+			if(useShared){
+				matrixMultiplyShared<<<dimGrid, dimBlock>>>(A_d, B_d, C_d, matArow, matAcol, matBrow, matBcol, matCrow, matCcol);
+			} else {
+				matrixMultiply<<<dimGrid, dimBlock>>>(A_d, B_d, C_d, matCrow, matCcol, matBrow);
+			}
 
 			cuda_ret = cudaDeviceSynchronize();
 			if(cuda_ret != cudaSuccess) FATAL("Unable to launch kernel");
@@ -224,7 +265,7 @@ int main (int argc, char *argv[])
 		printf("Serial average: %fs\n",serialTot);
 		printf("Kernel average: %fs\n", kernelTot);
 
-		// if serial total is greater than 240, bail
+		// if serial total is greater than 180, bail
 		if(serialTot > 240)
 			keepGoing = false;
 		else
