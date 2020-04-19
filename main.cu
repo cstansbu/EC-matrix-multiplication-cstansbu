@@ -101,104 +101,139 @@ int main (int argc, char *argv[])
     unsigned matBrow, matBcol;
     unsigned matCrow, matCcol;
     
+    // loop variables
+    bool keepGoing = true;
     int ITERATIONS = 3;
-    int MAT_SIZE = 2000;
 
-    // Set initial amounts
-	matArow = matCrow = MAT_SIZE;
-	matAcol = matBrow = MAT_SIZE;
-	matBcol = matCcol = MAT_SIZE;
+    // average arrays
+    float *serialAvg, *kernelAvg;
+    serialAvg = (float*) malloc( sizeof(float)*ITERATIONS );
+    kernelAvg = (float*) malloc( sizeof(float)*ITERATIONS );
 
-	// Give it three rounds
-	for(int k = 0; k < ITERATIONS; k++){
 
-		// Set matrix sizes
-		A_sz = matArow*matAcol;
-		B_sz = matBrow*matBcol;
-		C_sz = matArow*matBcol;
+    // initial matrix size
+    int MAT_SIZE = 20;
 
-		A_h = (float*) malloc( sizeof(float)*A_sz );
-		for (unsigned int i=0; i < A_sz; i++) { A_h[i] = (rand()%100)/100.00; }
+    // loop until serial operation takes 4 minutes
+    while(keepGoing){
 
-		B_h = (float*) malloc( sizeof(float)*B_sz );
-		for (unsigned int i=0; i < B_sz; i++) { B_h[i] = (rand()%100)/100.00; }
+		// Set initial amounts
+		matArow = matCrow = MAT_SIZE;
+		matAcol = matBrow = MAT_SIZE;
+		matBcol = matCcol = MAT_SIZE;
 
-		C_h = (float*) malloc( sizeof(float)*C_sz );
-		CSerial_h = (float*) malloc( sizeof(float)*C_sz );
+		printf("Testing matrix size: %d\n", MAT_SIZE); fflush(stdout);
 
-		printf("    A: %u x %u\n    B: %u x %u\n    C: %u x %u\n", matArow, matAcol,
-			matBrow, matBcol, matCrow, matCcol);
+		// Give it three rounds
+		for(int k = 0; k < ITERATIONS; k++){
+			printf("Iteration: %d\n", k); fflush(stdout);
 
-		// Allocate device variables ----------------------------------------------
+			// Set matrix sizes
+			A_sz = matArow*matAcol;
+			B_sz = matBrow*matBcol;
+			C_sz = matArow*matBcol;
 
-		printf("Allocating device variables...\n"); fflush(stdout);
+			A_h = (float*) malloc( sizeof(float)*A_sz );
+			for (unsigned int i=0; i < A_sz; i++) { A_h[i] = (rand()%100)/100.00; }
 
-		// allocate memory and check for errors
-		CHECK_CUDA_RESULT(cudaMalloc(&A_d, A_sz * sizeof(float)));
-		CHECK_CUDA_RESULT(cudaMalloc(&B_d, B_sz * sizeof(float)));
-		CHECK_CUDA_RESULT(cudaMalloc(&C_d, C_sz * sizeof(float)));
+			B_h = (float*) malloc( sizeof(float)*B_sz );
+			for (unsigned int i=0; i < B_sz; i++) { B_h[i] = (rand()%100)/100.00; }
 
-		CHECK_CUDA_RESULT(cudaDeviceSynchronize());
+			C_h = (float*) malloc( sizeof(float)*C_sz );
+			CSerial_h = (float*) malloc( sizeof(float)*C_sz );
 
-		// Copy host variables to device ------------------------------------------
+			printf("    A: %u x %u\n    B: %u x %u\n    C: %u x %u\n", matArow, matAcol,
+				matBrow, matBcol, matCrow, matCcol);
 
-		printf("Copying data from host to device...\n"); fflush(stdout);
+			// Allocate device variables ----------------------------------------------
 
-		// copying from host to device
-		CHECK_CUDA_RESULT(cudaMemcpy(A_d, A_h, A_sz * sizeof(float), cudaMemcpyHostToDevice));
-		CHECK_CUDA_RESULT(cudaMemcpy(B_d, B_h, B_sz * sizeof(float), cudaMemcpyHostToDevice));
-		CHECK_CUDA_RESULT(cudaMemcpy(C_d, C_h, C_sz * sizeof(float), cudaMemcpyHostToDevice));
+			// allocate memory and check for errors
+			CHECK_CUDA_RESULT(cudaMalloc(&A_d, A_sz * sizeof(float)));
+			CHECK_CUDA_RESULT(cudaMalloc(&B_d, B_sz * sizeof(float)));
+			CHECK_CUDA_RESULT(cudaMalloc(&C_d, C_sz * sizeof(float)));
 
-		CHECK_CUDA_RESULT(cudaDeviceSynchronize());
+			CHECK_CUDA_RESULT(cudaDeviceSynchronize());
 
-		// Performing serial calculation
-		printf("Testing serial..."); fflush(stdout);
-		startTime(&timer);
-		matrixMultiplySerial(A_h, B_h, CSerial_h, matArow, matAcol, matBrow);
-		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
+			// Copy host variables to device ------------------------------------------
 
-		// Launch kernel
-		printf("Launching kernel..."); fflush(stdout);
+			// copying from host to device
+			CHECK_CUDA_RESULT(cudaMemcpy(A_d, A_h, A_sz * sizeof(float), cudaMemcpyHostToDevice));
+			CHECK_CUDA_RESULT(cudaMemcpy(B_d, B_h, B_sz * sizeof(float), cudaMemcpyHostToDevice));
+			CHECK_CUDA_RESULT(cudaMemcpy(C_d, C_h, C_sz * sizeof(float), cudaMemcpyHostToDevice));
 
-	    //@@ Initialize the grid and block dimensions here
-	    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-	    dim3 dimGrid((int)ceil(matCcol/(double)TILE_WIDTH), (int)ceil(matCrow/(double)TILE_WIDTH));
+			CHECK_CUDA_RESULT(cudaDeviceSynchronize());
 
-		//@@ Launch the GPU Kernel here
-		startTime(&timer);
-		matrixMultiplyShared<<<dimGrid, dimBlock>>>(A_d, B_d, C_d,
-													matArow, matAcol, matBrow, matBcol,
-													matCrow, matCcol);
+			// Performing serial calculation
+			printf("Testing serial..."); fflush(stdout);
+			startTime(&timer);
+			matrixMultiplySerial(A_h, B_h, CSerial_h, matArow, matAcol, matBrow);
+			stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 
-		cuda_ret = cudaDeviceSynchronize();
-		if(cuda_ret != cudaSuccess) FATAL("Unable to launch kernel");
-		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
+			serialAvg[k] = elapsedTime(timer);
 
-		// Copy device variables from host ----------------------------------------
-		printf("Copying data from device to host...\n"); fflush(stdout);
+			// Launch kernel
+			printf("Launching kernel..."); fflush(stdout);
 
-		// copying results from device to host
-		CHECK_CUDA_RESULT(cudaMemcpy(C_h, C_d, C_sz * sizeof(float), cudaMemcpyDeviceToHost));
+			//@@ Initialize the grid and block dimensions here
+			dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
+			dim3 dimGrid((int)ceil(matCcol/(double)TILE_WIDTH), (int)ceil(matCrow/(double)TILE_WIDTH));
 
-		cudaDeviceSynchronize();
+			//@@ Launch the GPU Kernel here
+			startTime(&timer);
+			matrixMultiplyShared<<<dimGrid, dimBlock>>>(A_d, B_d, C_d,
+														matArow, matAcol, matBrow, matBcol,
+														matCrow, matCcol);
 
-		// Verify correctness -----------------------------------------------------
+			cuda_ret = cudaDeviceSynchronize();
+			if(cuda_ret != cudaSuccess) FATAL("Unable to launch kernel");
+			stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 
-		printf("Verifying results...\n"); fflush(stdout);
+			kernelAvg[k] = elapsedTime(timer);
 
-		verify(A_h, B_h, C_h, matArow, matAcol, matBcol);
-		verify(A_h, B_h, CSerial_h, matArow, matAcol, matBcol);
+			// Copy device variables from host ----------------------------------------
 
-		// Free memory ------------------------------------------------------------
+			// copying results from device to host
+			CHECK_CUDA_RESULT(cudaMemcpy(C_h, C_d, C_sz * sizeof(float), cudaMemcpyDeviceToHost));
 
-		free(A_h);
-		free(B_h);
-		free(C_h);
-		free(CSerial_h);
+			cudaDeviceSynchronize();
 
-		cudaFree(A_d);
-		cudaFree(B_d);
-		cudaFree(C_d);
-	}
+			// Free memory ------------------------------------------------------------
+
+			free(A_h);
+			free(B_h);
+			free(C_h);
+			free(CSerial_h);
+
+			cudaFree(A_d);
+			cudaFree(B_d);
+			cudaFree(C_d);
+		} // End iterations
+
+		float serialTot = 0;
+		float kernelTot = 0;
+
+		// compute average
+		for(int i = 0; i < ITERATIONS; i++){
+			serialTot += serialAvg[i];
+			kernelTot += kernelAvg[i];
+		}
+
+		serialTot = serialTot / ITERATIONS;
+		kernelTot = kernelTot / ITERATIONS;
+
+		printf("Serial average: %fs\n",serialTot);
+		printf("Kernel average: %fs\n", kernelTot);
+
+		// if serial total is greater than 240, bail
+		if(serialTot > 240)
+			keepGoing = false;
+		else
+			MAT_SIZE = MAT_SIZE * 2;
+    }
+
+   // free average loops
+   free(serialAvg);
+   free(kernelAvg);
+
    return 0;
 }
