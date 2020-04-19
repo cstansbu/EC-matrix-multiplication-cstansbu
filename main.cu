@@ -122,8 +122,6 @@ int main (int argc, char *argv[])
 
     // Initialize host variables ----------------------------------------------
 
-    printf("\nSetting up the variables..."); fflush(stdout);
-
     float *A_h, *B_h, *C_h, *CSerial_h;
     float *A_d, *B_d, *C_d;
     size_t A_sz, B_sz, C_sz;
