@@ -102,7 +102,7 @@ int main (int argc, char *argv[])
     unsigned matCrow, matCcol;
     
     int ITERATIONS = 3;
-    int MAT_SIZE = 20;
+    int MAT_SIZE = 2000;
 
     // Set initial amounts
 	matArow = matCrow = MAT_SIZE;
