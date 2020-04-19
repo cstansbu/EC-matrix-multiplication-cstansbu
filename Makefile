@@ -38,13 +38,13 @@ RM= rm -rf
 #Name of the executable
 #You must modify this!!  TODO:  Here's an example:
 #EXECUTABLE= lab0
-EXECUTABLE= lab2
+EXECUTABLE= EC
 
 #You must modify this!!  TODO:
 #OBJS should be all the object files that will be linked to form the executable
 #In general this will be a xxx.o for each xxx.cu file.  Example:
 #OBJS=first.o main.o
-OBJS=support.o kernel.o main.o
+OBJS=support.o main.o
 
 
 #The following could be used in place of the default rule, replacing matrix_cuda with 

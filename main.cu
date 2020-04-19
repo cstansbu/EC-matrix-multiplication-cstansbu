@@ -131,7 +131,7 @@ int main (int argc, char *argv[])
 
 		// Allocate device variables ----------------------------------------------
 
-		printf("Allocating device variables..."); fflush(stdout);
+		printf("Allocating device variables...\n"); fflush(stdout);
 
 		// allocate memory and check for errors
 		CHECK_CUDA_RESULT(cudaMalloc(&A_d, A_sz * sizeof(float)));
@@ -142,7 +142,7 @@ int main (int argc, char *argv[])
 
 		// Copy host variables to device ------------------------------------------
 
-		printf("Copying data from host to device..."); fflush(stdout);
+		printf("Copying data from host to device...\n"); fflush(stdout);
 
 		// copying from host to device
 		CHECK_CUDA_RESULT(cudaMemcpy(A_d, A_h, A_sz * sizeof(float), cudaMemcpyHostToDevice));
@@ -175,7 +175,7 @@ int main (int argc, char *argv[])
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 
 		// Copy device variables from host ----------------------------------------
-		printf("Copying data from device to host..."); fflush(stdout);
+		printf("Copying data from device to host...\n"); fflush(stdout);
 
 		// copying results from device to host
 		CHECK_CUDA_RESULT(cudaMemcpy(C_h, C_d, C_sz * sizeof(float), cudaMemcpyDeviceToHost));
@@ -184,7 +184,7 @@ int main (int argc, char *argv[])
 
 		// Verify correctness -----------------------------------------------------
 
-		printf("Verifying results..."); fflush(stdout);
+		printf("Verifying results...\n"); fflush(stdout);
 
 		verify(A_h, B_h, C_h, matArow, matAcol, matBcol);
 		verify(A_h, B_h, CSerial_h, matArow, matAcol, matBcol);
